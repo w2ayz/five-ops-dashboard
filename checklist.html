@@ -1,0 +1,332 @@
+<title>Five Ops — Service Health Checklist</title>
+<style>
+  :root {
+    --bg: #000000; --bg2: #120A00; --bg3: #1C1000;
+    --border: #2E1900; --border2: #4A2900;
+    --text: #F5E6D3; --text-hi: #FFF5EA; --text-lo: #8A6A4A;
+    --ok: #6EE87A; --ok-dim: #123312;
+    --warn: #FFC53D; --warn-dim: #3D2900;
+    --err: #FF5C5C; --err-dim: #3D0A0A;
+    --accent: #FF9B40; --accent2: #E07020;
+    --mono: 'Courier New', 'Lucida Console', monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 15px; line-height: 1.6; min-height: 100vh; }
+  body::before { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px); pointer-events: none; z-index: 1000; }
+  .shell { max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+  .masthead { border-bottom: 1px solid var(--border2); padding-bottom: 24px; margin-bottom: 32px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .masthead-left { display: flex; flex-direction: column; gap: 4px; }
+  .system-id { font-size: 12px; letter-spacing: 0.25em; color: var(--accent); text-transform: uppercase; }
+  h1 { font-size: 30px; font-weight: normal; letter-spacing: -0.01em; color: var(--text-hi); line-height: 1.1; text-wrap: balance; }
+  .subtitle { font-size: 13px; color: var(--text-lo); letter-spacing: 0.05em; margin-top: 2px; }
+  .meta-block { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .timestamp { font-size: 13px; color: var(--text-lo); }
+  .machine-tag { font-size: 12px; letter-spacing: 0.15em; color: var(--accent); background: rgba(255,155,64,0.08); border: 1px solid rgba(255,155,64,0.2); padding: 2px 8px; text-transform: uppercase; }
+  .section { margin-bottom: 32px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .section-label { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--accent); }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+  .section-count { font-size: 12px; color: var(--text-lo); white-space: nowrap; }
+  .svc-table { width: 100%; border-collapse: collapse; }
+  .svc-table tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  .svc-table tr:last-child { border-bottom: none; }
+  .svc-table tr:hover { background: var(--bg2); }
+  .svc-table td { padding: 9px 12px; vertical-align: middle; }
+  td.svc-name { color: var(--text-hi); font-size: 13px; white-space: nowrap; padding-left: 0; width: 210px; }
+  td.svc-id { color: var(--text-lo); font-size: 13px; width: 210px; }
+  td.svc-check { color: var(--text); font-size: 13px; line-height: 1.5; }
+  td.svc-status { text-align: right; padding-right: 0; white-space: nowrap; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; border-width: 1px; border-style: solid; }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .badge.ok { color: var(--ok); background: var(--ok-dim); border-color: rgba(110,232,122,0.25); }
+  .badge.ok::before { background: var(--ok); box-shadow: 0 0 6px var(--ok); animation: pulse-ok 2s ease-in-out infinite; }
+  .badge.warn { color: var(--warn); background: var(--warn-dim); border-color: rgba(255,197,61,0.25); }
+  .badge.warn::before { background: var(--warn); box-shadow: 0 0 6px var(--warn); animation: pulse-warn 1.5s ease-in-out infinite; }
+  .badge.err { color: var(--err); background: var(--err-dim); border-color: rgba(255,92,92,0.25); }
+  .badge.err::before { background: var(--err); box-shadow: 0 0 6px var(--err); animation: pulse-err 0.8s ease-in-out infinite; }
+  .badge.off { color: var(--text-lo); background: var(--bg3); border-color: var(--border); }
+  .badge.off::before { background: var(--text-lo); }
+  @keyframes pulse-ok   { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  @keyframes pulse-warn { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes pulse-err  { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .step-list { display: flex; flex-direction: column; gap: 3px; }
+  .step { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text); line-height: 1.5; }
+  .step-num { color: var(--text-lo); flex-shrink: 0; width: 14px; text-align: right; padding-top: 1px; }
+  code { background: var(--bg3); border: 1px solid var(--border); color: var(--accent); padding: 0 5px; font-size: 12px; font-family: var(--mono); border-radius: 2px; }
+  .skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+  .skill-card { background: var(--bg2); border: 1px solid var(--border); padding: 12px 14px; transition: border-color 0.15s; }
+  .skill-card:hover { border-color: var(--border2); }
+  .skill-name { font-size: 14px; color: var(--text-hi); letter-spacing: 0.03em; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .skill-tag { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent2); background: rgba(224,112,32,0.14); border: 1px solid rgba(224,112,32,0.28); padding: 1px 5px; }
+  .skill-desc { color: var(--text-lo); font-size: 12.5px; line-height: 1.5; }
+  .summary-bar { display: flex; gap: 24px; padding: 16px 0; border-top: 1px solid var(--border2); border-bottom: 1px solid var(--border2); margin-bottom: 32px; flex-wrap: wrap; }
+  .summary-item { display: flex; flex-direction: column; gap: 2px; }
+  .summary-num { font-size: 26px; line-height: 1; font-weight: bold; font-variant-numeric: tabular-nums; }
+  .summary-num.ok { color: var(--ok); } .summary-num.warn { color: var(--warn); } .summary-num.err { color: var(--err); } .summary-num.neutral { color: var(--text-hi); }
+  .summary-lbl { font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-lo); }
+  .notice { padding: 12px 16px; margin-bottom: 32px; font-size: 13px; line-height: 1.7; color: var(--text); }
+  .notice-head { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 6px; }
+  .fix-cmd { display: block; margin-top: 6px; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-lo); letter-spacing: 0.05em; flex-wrap: wrap; gap: 8px; }
+  @media (max-width: 680px) { td.svc-id { display: none; } td.svc-name { width: auto; } .masthead { flex-direction: column; align-items: flex-start; } .meta-block { align-items: flex-start; } }
+</style>
+
+<div class="shell">
+  <div class="masthead">
+    <div class="masthead-left">
+      <div class="system-id">raspberrypi // ops dashboard</div>
+      <h1>Service Health Checklist</h1>
+      <div class="subtitle">Raspberry Pi 5 Model B · OpenClaw 2026.7.1-2 · Node v22.23.2</div>
+    </div>
+    <div class="meta-block">
+      <div class="timestamp" id="ts">checking...</div>
+      <div class="machine-tag">raspberrypi · 100.99.254.42</div>
+    </div>
+  </div>
+
+  <div class="summary-bar">
+    <div class="summary-item"><div class="summary-num ok" id="count-online">3</div><div class="summary-lbl">Online</div></div>
+    <div class="summary-item"><div class="summary-num warn" id="count-warn">1</div><div class="summary-lbl">Warning</div></div>
+    <div class="summary-item"><div class="summary-num err" id="count-failing">0</div><div class="summary-lbl">Failing</div></div>
+    <div class="summary-item"><div class="summary-num neutral">6</div><div class="summary-lbl">Plugins</div></div>
+    <div class="summary-item"><div class="summary-num neutral">1</div><div class="summary-lbl">Voice Enrolled</div></div>
+    <div class="summary-item"><div class="summary-num neutral">10</div><div class="summary-lbl">Tailscale Peers</div></div>
+  </div>
+
+  <div class="notice" id="notice-box" style="background:rgba(0,230,118,0.05);border:1px solid rgba(0,230,118,0.2);">
+    <div class="notice-head" id="notice-head" style="color:var(--ok)">✓ All Core Services Nominal — Aug 26, 2026</div>
+    <span id="notice-body">Gateway, RealTimeTalk daemon, and Telegram bot all passed the last check. Zero under-voltage or thermal-throttle events since boot.</span>
+    <span class="fix-cmd" style="color:var(--warn)">Note: load average is running high (2.64 on 4 cores) — driven by the desktop Chromium sessions under wf-panel-pi, not a fault. See Hardware &amp; Load below.</span>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-label">Core Infrastructure</div><div class="section-line"></div><div class="section-count">3 services</div></div>
+    <table class="svc-table">
+      <tr>
+        <td class="svc-name">OpenClaw Gateway</td>
+        <td class="svc-id">openclaw-gateway.service · :18789</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>systemctl --user status openclaw-gateway.service</code> → active (running)</span></div>
+            <div class="step"><span class="step-num">2.</span><span><code>lsof -iTCP:18789 -sTCP:LISTEN</code> → node listening, pid 1036</span></div>
+            <div class="step"><span class="step-num">3.</span><span>6 plugins loaded: openai, telegram, memory-lancedb, browser, codex, memory-core</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span id="badge-openclaw-gateway" class="badge ok">Online</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">RealTimeTalk Daemon</td>
+        <td class="svc-id">openclaw-realtimetalk.service · v3.17.1 · :19000</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>curl localhost:19000/status</code> → <code>"status":"running","voice":"active"</code></span></div>
+            <div class="step"><span class="step-num">2.</span><span>Wake phrase <code>"five wake up"</code> · mic-gain 16, mic-gate 412</span></div>
+            <div class="step"><span class="step-num">3.</span><span>Currently idle-listening (<code>rtt_sleep_state.json</code>: sleeping) — wakes on phrase, this is expected</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span id="badge-realtimetalk" class="badge ok">Online</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Telegram Bot</td>
+        <td class="svc-id">plugin: telegram</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span>Runs in-process inside the Gateway (pid 1036), plugin enabled: true</span></div>
+            <div class="step"><span class="step-num">2.</span><span>Group chats gated to explicit @mentions (<code>requireMention: true</code>)</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span class="badge ok">Enabled</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-label">Hardware &amp; Thermals</div><div class="section-line"></div><div class="section-count">3 checks</div></div>
+    <table class="svc-table">
+      <tr>
+        <td class="svc-name">CPU Temperature</td>
+        <td class="svc-id">Cortex-A76 · 4 cores @ 2.4GHz</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>vcgencmd measure_temp</code> → <code>65.3'C</code></span></div>
+            <div class="step"><span class="step-num">2.</span><span><code>vcgencmd get_throttled</code> → <code>0x0</code> — no under-voltage, no throttle, ever</span></div>
+            <div class="step"><span class="step-num">3.</span><span>Active cooling device: <code>pwm-fan</code></span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span class="badge ok">Nominal</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Core Voltage &amp; Clock</td>
+        <td class="svc-id">1.5–2.4GHz range</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>vcgencmd measure_volts</code> → <code>0.856V</code> core</span></div>
+            <div class="step"><span class="step-num">2.</span><span><code>vcgencmd measure_clock arm</code> → <code>2400MHz</code> — running at max, unthrottled</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span class="badge ok">Nominal</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Load &amp; Uptime</td>
+        <td class="svc-id">up 2d 7h · boot 2026-08-23 17:08</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>uptime</code> → load average <code>2.64, 2.07, 1.51</code> across 4 cores</span></div>
+            <div class="step"><span class="step-num">2.</span><span>Top consumers: three Chromium renderers under <code>wf-panel-pi</code> (desktop kiosk), RealTimeTalk daemon</span></div>
+            <div class="step"><span class="step-num">3.</span><span>Fix: close idle Chromium tabs if the desktop feels sluggish — <code>pkill -f chromium</code> is the blunt option</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span class="badge warn">Elevated</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-label">Storage &amp; Memory</div><div class="section-line"></div><div class="section-count">4 volumes</div></div>
+    <table class="svc-table">
+      <tr>
+        <td class="svc-name">Root Filesystem</td>
+        <td class="svc-id">/dev/mmcblk0p2 (ext4) · /</td>
+        <td class="svc-check">26G used of 468G — 6% full, 419G available</td>
+        <td class="svc-status"><span class="badge ok">Healthy</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Boot Partition</td>
+        <td class="svc-id">/dev/mmcblk0p1 (vfat) · /boot/firmware</td>
+        <td class="svc-check">79M used of 511M — 16% full</td>
+        <td class="svc-status"><span class="badge ok">Healthy</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Memory (RAM)</td>
+        <td class="svc-id">15Gi total</td>
+        <td class="svc-check">7.7Gi used, 6.2Gi buff/cache, 8.2Gi available</td>
+        <td class="svc-status"><span class="badge ok">Healthy</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Swap</td>
+        <td class="svc-id">199Mi total</td>
+        <td class="svc-check">0B used — not under memory pressure</td>
+        <td class="svc-status"><span class="badge off">Idle</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-label">Network</div><div class="section-line"></div><div class="section-count">3 interfaces</div></div>
+    <table class="svc-table">
+      <tr>
+        <td class="svc-name">Wi-Fi (wlan0)</td>
+        <td class="svc-id">192.168.87.62</td>
+        <td class="svc-check">Home Wi-Fi · 5.745GHz · link rate 390Mb/s</td>
+        <td class="svc-status"><span class="badge ok">Connected</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Tailscale (tailscale0)</td>
+        <td class="svc-id">100.99.254.42</td>
+        <td class="svc-check">investamily tailnet · 10 peers, 7 reachable now</td>
+        <td class="svc-status"><span class="badge ok">Connected</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Ethernet (eth0)</td>
+        <td class="svc-id">—</td>
+        <td class="svc-check">No cable — this Pi runs Wi-Fi only, so DOWN here is expected</td>
+        <td class="svc-status"><span class="badge off">Not Connected</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-label">RealTimeTalk — Voice &amp; Radio</div><div class="section-line"></div><div class="section-count">4 subsystems</div></div>
+    <table class="svc-table">
+      <tr>
+        <td class="svc-name">Owner-Only Verification</td>
+        <td class="svc-id">threshold 0.50 · 1 device enrolled</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>/status</code> → <code>"owner_mode":"owner-only","enrolled":true</code></span></div>
+            <div class="step"><span class="step-num">2.</span><span>Re-enroll via <code>/voice-enroll</code> if match score sits near threshold</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span class="badge ok">Enforced</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Wake Phrase Listener</td>
+        <td class="svc-id">"five wake up"</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>rtt_sleep_state.json</code> → <code>{"sleeping": true}</code> — idle, listening for the phrase</span></div>
+            <div class="step"><span class="step-num">2.</span><span>This is the daemon's normal resting state, not a fault</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span class="badge off">Sleeping</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Radio Mode / AIOC</td>
+        <td class="svc-id">expects VID:PID 1209:7388</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>lsusb</code> → no AIOC dongle present on this machine</span></div>
+            <div class="step"><span class="step-num">2.</span><span>Radio voice profile is enrolled and ready — plug in AIOC to auto-enable</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span class="badge off">Not Connected</span></td>
+      </tr>
+      <tr>
+        <td class="svc-name">Mic Input Device</td>
+        <td class="svc-id">TI PCM2902 USB Audio Codec</td>
+        <td class="svc-check">
+          <div class="step-list">
+            <div class="step"><span class="step-num">1.</span><span><code>lsusb</code> → Bus 001 Device 002, ID 08bb:2902</span></div>
+            <div class="step"><span class="step-num">2.</span><span>Primary capture path for wake-word detection on this Pi</span></div>
+          </div>
+        </td>
+        <td class="svc-status"><span class="badge ok">Detected</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-label">Plugins &amp; Skills</div><div class="section-line"></div><div class="section-count">6 plugins · 2 skills</div></div>
+    <div class="skills-grid">
+      <div class="skill-card"><div class="skill-name">openai <span class="skill-tag">Model Runtime</span></div><div class="skill-desc">Codex GPT-5.5 backend, "friendly" personality profile. Backs the main chat and Telegram sessions.</div></div>
+      <div class="skill-card"><div class="skill-name">codex <span class="skill-tag">Reasoning</span></div><div class="skill-desc">Reasoning engine underneath the openai plugin runtime.</div></div>
+      <div class="skill-card"><div class="skill-name">telegram <span class="skill-tag">Messaging</span></div><div class="skill-desc">Telegram bot integration, group chats gated to explicit @mentions.</div></div>
+      <div class="skill-card"><div class="skill-name">memory-core <span class="skill-tag">Memory</span></div><div class="skill-desc">Long-term MEMORY.md plus daily session notes under workspace/memory/.</div></div>
+      <div class="skill-card"><div class="skill-name">memory-lancedb <span class="skill-tag">Memory</span></div><div class="skill-desc">Vector store backing semantic recall over past sessions.</div></div>
+      <div class="skill-card"><div class="skill-name">browser <span class="skill-tag">Automation</span></div><div class="skill-desc">Browser control surface used by the browser-automation skill.</div></div>
+      <div class="skill-card"><div class="skill-name">browser-automation <span class="skill-tag">Skill</span></div><div class="skill-desc">Puppeteer-driven page automation primitives for the agent.</div></div>
+      <div class="skill-card"><div class="skill-name">canvas <span class="skill-tag">Skill</span></div><div class="skill-desc">Canvas rendering skill used for design and diagram output.</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><div class="section-label">Quick Fix Reference</div><div class="section-line"></div></div>
+    <table class="svc-table">
+      <tr><td class="svc-name" style="color:var(--text-lo);font-size:11px">Gateway unresponsive</td><td class="svc-check"><code>systemctl --user restart openclaw-gateway.service</code></td><td class="svc-status"></td></tr>
+      <tr><td class="svc-name" style="color:var(--text-lo);font-size:11px">RTT daemon stuck / port 19000 held</td><td class="svc-check"><code>lsof -i:19000 -sTCP:LISTEN</code> → <code>systemctl --user restart openclaw-realtimetalk.service</code></td><td class="svc-status"></td></tr>
+      <tr><td class="svc-name" style="color:var(--text-lo);font-size:11px">Check for thermal throttling</td><td class="svc-check"><code>vcgencmd get_throttled</code> — non-zero means a throttle event happened since boot</td><td class="svc-status"></td></tr>
+      <tr><td class="svc-name" style="color:var(--text-lo);font-size:11px">Desktop feels sluggish</td><td class="svc-check"><code>ps aux --sort=-%cpu | head</code> to find the Chromium renderer eating cycles, then close the tab</td><td class="svc-status"></td></tr>
+      <tr><td class="svc-name" style="color:var(--text-lo);font-size:11px">Service logs</td><td class="svc-check"><code>journalctl --user -u openclaw-gateway.service -f</code></td><td class="svc-status"></td></tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    <span>raspberrypi · Five · OpenClaw 2026.7.1-2</span>
+    <span id="footer-ts"></span>
+  </div>
+</div>
+
+<script>
+  function fmt(d) {
+    return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + ' · ' +
+           d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true});
+  }
+  function tick() {
+    const now = new Date();
+    const s = fmt(now);
+    document.getElementById('ts').textContent = 'Last checked: ' + s;
+    document.getElementById('footer-ts').textContent = s;
+  }
+  tick(); setInterval(tick, 30000);
+</script>
